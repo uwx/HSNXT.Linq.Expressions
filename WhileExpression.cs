@@ -136,15 +136,15 @@ namespace Mono.Linq.Expressions {
 		public static WhileExpression While (Expression test, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
 		{
 			if (test == null)
-				throw new ArgumentNullException ("test");
+				throw new ArgumentNullException (nameof(test));
 			if (body == null)
-				throw new ArgumentNullException ("body");
+				throw new ArgumentNullException (nameof(body));
 
 			if (test.Type != typeof (bool))
-				throw new ArgumentException ("Test must be a boolean expression", "test");
+				throw new ArgumentException ("Test must be a boolean expression", nameof(test));
 
 			if (continueTarget != null && continueTarget.Type != typeof (void))
-				throw new ArgumentException ("Continue label target must be void", "continueTarget");
+				throw new ArgumentException ("Continue label target must be void", nameof(continueTarget));
 
 			return new WhileExpression (test, body, breakTarget, continueTarget);
 		}

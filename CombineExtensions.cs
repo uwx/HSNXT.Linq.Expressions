@@ -38,9 +38,9 @@ namespace Mono.Linq.Expressions {
 		public static Expression<T> Combine<[DelegateConstraint] T> (this Expression<T> self, Func<Expression, Expression> combinator) where T : class
 		{
 			if (self == null)
-				throw new ArgumentNullException ("self");
+				throw new ArgumentNullException (nameof(self));
 			if (combinator == null)
-				throw new ArgumentNullException ("combinator");
+				throw new ArgumentNullException (nameof(combinator));
 
 			var parameters = ParametersFor(self);
 
@@ -50,11 +50,11 @@ namespace Mono.Linq.Expressions {
 		public static Expression<T> Combine<[DelegateConstraint] T> (this Expression<T> self, Expression<T> expression, Func<Expression, Expression, Expression> combinator) where T : class
 		{
 			if (self == null)
-				throw new ArgumentNullException ("self");
+				throw new ArgumentNullException (nameof(self));
 			if (expression == null)
-				throw new ArgumentNullException ("expression");
+				throw new ArgumentNullException (nameof(expression));
 			if (combinator == null)
-				throw new ArgumentNullException ("combinator");
+				throw new ArgumentNullException (nameof(combinator));
 
 			var parameters = ParametersFor (self);
 

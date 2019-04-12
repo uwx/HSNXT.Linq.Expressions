@@ -160,24 +160,24 @@ namespace Mono.Linq.Expressions {
 		public static ForExpression For (ParameterExpression variable, Expression initializer, Expression test, Expression step, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
 		{
 			if (variable == null)
-				throw new ArgumentNullException ("variable");
+				throw new ArgumentNullException (nameof(variable));
 			if (initializer == null)
-				throw new ArgumentNullException ("initializer");
+				throw new ArgumentNullException (nameof(initializer));
 			if (test == null)
-				throw new ArgumentNullException ("test");
+				throw new ArgumentNullException (nameof(test));
 			if (step == null)
-				throw new ArgumentNullException ("step");
+				throw new ArgumentNullException (nameof(step));
 			if (body == null)
-				throw new ArgumentNullException ("body");
+				throw new ArgumentNullException (nameof(body));
 
 			if (!variable.Type.IsAssignableFrom (initializer.Type))
-				throw new ArgumentException ("Initializer must be assignable to variable", "initializer");
+				throw new ArgumentException ("Initializer must be assignable to variable", nameof(initializer));
 
 			if (test.Type != typeof (bool))
-				throw new ArgumentException ("Test must be a boolean expression", "test");
+				throw new ArgumentException ("Test must be a boolean expression", nameof(test));
 
 			if (continueTarget != null && continueTarget.Type != typeof (void))
-				throw new ArgumentException ("Continue label target must be void", "continueTarget");
+				throw new ArgumentException ("Continue label target must be void", nameof(continueTarget));
 
 			return new ForExpression (variable, initializer, test, step, body, breakTarget, continueTarget);
 		}

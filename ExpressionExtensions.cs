@@ -36,7 +36,7 @@ namespace Mono.Linq.Expressions {
 		public static bool Is (this Expression self, ExpressionType type)
 		{
 			if (self == null)
-				throw new ArgumentNullException ("self");
+				throw new ArgumentNullException (nameof(self));
 
 			return self.NodeType == type;
 		}
@@ -44,7 +44,7 @@ namespace Mono.Linq.Expressions {
 		public static bool Is (this CustomExpression self, CustomExpressionType type)
 		{
 			if (self == null)
-				throw new ArgumentNullException ("self");
+				throw new ArgumentNullException (nameof(self));
 
 			return self.CustomNodeType == type;
 		}

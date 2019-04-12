@@ -116,12 +116,12 @@ namespace Mono.Linq.Expressions {
 		public static UsingExpression Using (ParameterExpression variable, Expression disposable, Expression body)
 		{
 			if (disposable == null)
-				throw new ArgumentNullException ("disposable");
+				throw new ArgumentNullException (nameof(disposable));
 			if (body == null)
-				throw new ArgumentNullException ("body");
+				throw new ArgumentNullException (nameof(body));
 
 			if (!typeof (IDisposable).IsAssignableFrom (disposable.Type))
-				throw new ArgumentException ("The disposable must implement IDisposable", "disposable");
+				throw new ArgumentException ("The disposable must implement IDisposable", nameof(disposable));
 
 			if (variable == null)
 				variable = Expression.Parameter (disposable.Type);

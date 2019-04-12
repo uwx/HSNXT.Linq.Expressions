@@ -37,7 +37,7 @@ namespace Mono.Linq.Expressions.ToCode {
 		public static string ToCSharpCode (this Expression self)
 		{
 			if (self == null)
-				throw new ArgumentNullException ("self");
+				throw new ArgumentNullException (nameof(self));
 
 			return ToCode (writer => writer.Write (self));
 		}
@@ -45,7 +45,7 @@ namespace Mono.Linq.Expressions.ToCode {
 		public static string ToCSharpCode (this LambdaExpression self)
 		{
 			if (self == null)
-				throw new ArgumentNullException ("self");
+				throw new ArgumentNullException (nameof(self));
 
 			return ToCode (writer => writer.Write (self));
 		}

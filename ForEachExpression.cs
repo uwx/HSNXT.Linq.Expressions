@@ -304,17 +304,17 @@ namespace Mono.Linq.Expressions {
 		public static ForEachExpression ForEach (ParameterExpression variable, Expression enumerable, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
 		{
 			if (variable == null)
-				throw new ArgumentNullException ("variable");
+				throw new ArgumentNullException (nameof(variable));
 			if (enumerable == null)
-				throw new ArgumentNullException ("enumerable");
+				throw new ArgumentNullException (nameof(enumerable));
 			if (body == null)
-				throw new ArgumentNullException ("body");
+				throw new ArgumentNullException (nameof(body));
 
 			if (!typeof (IEnumerable).IsAssignableFrom (enumerable.Type))
-				throw new ArgumentException ("The enumerable must implement at least IEnumerable", "enumerable");
+				throw new ArgumentException ("The enumerable must implement at least IEnumerable", nameof(enumerable));
 
 			if (continueTarget != null && continueTarget.Type != typeof (void))
-				throw new ArgumentException ("Continue label target must be void", "continueTarget");
+				throw new ArgumentException ("Continue label target must be void", nameof(continueTarget));
 
 			return new ForEachExpression (variable, enumerable, body, breakTarget, continueTarget);
 		}
