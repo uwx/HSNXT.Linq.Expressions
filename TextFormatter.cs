@@ -29,83 +29,80 @@
 using System;
 using System.IO;
 
-namespace Mono.Linq.Expressions {
+namespace Mono.Linq.Expressions
+{
+    public class TextFormatter : IFormatter
+    {
+        private readonly TextWriter _writer;
+        private int _indent;
 
-	public class TextFormatter : IFormatter {
+        private bool _writeIndent;
 
-		readonly TextWriter writer;
+        public TextFormatter(TextWriter writer)
+        {
+            _writer = writer ?? throw new ArgumentNullException(nameof(writer));
+        }
 
-		bool write_indent;
-		int indent;
+        public void Write(string str)
+        {
+            WriteIndent();
+            _writer.Write(str);
+            _writeIndent = false;
+        }
 
-		public TextFormatter (TextWriter writer)
-		{
-			if (writer == null)
-				throw new ArgumentNullException(nameof(writer));
+        public void WriteLine()
+        {
+            _writer.WriteLine();
+            _writeIndent = true;
+        }
 
-			this.writer = writer;
-		}
+        public void WriteSpace()
+        {
+            Write(" ");
+        }
 
-		void WriteIndent ()
-		{
-			if (!write_indent)
-				return;
+        public void WriteToken(string token)
+        {
+            Write(token);
+        }
 
-			for (int i = 0; i < indent; i++)
-				writer.Write ("\t");
-		}
+        public void WriteKeyword(string keyword)
+        {
+            Write(keyword);
+        }
 
-		public void Write (string str)
-		{
-			WriteIndent ();
-			writer.Write (str);
-			write_indent = false;
-		}
+        public void WriteLiteral(string literal)
+        {
+            Write(literal);
+        }
 
-		public void WriteLine ()
-		{
-			writer.WriteLine ();
-			write_indent = true;
-		}
+        public void WriteReference(string value, object reference)
+        {
+            Write(value);
+        }
 
-		public void WriteSpace ()
-		{
-			Write (" ");
-		}
+        public void WriteIdentifier(string value, object identifier)
+        {
+            Write(value);
+        }
 
-		public void WriteToken (string token)
-		{
-			Write (token);
-		}
+        public void Indent()
+        {
+            _indent++;
+        }
 
-		public void WriteKeyword (string keyword)
-		{
-			Write (keyword);
-		}
+        public void Dedent()
+        {
+            _indent--;
+        }
 
-		public void WriteLiteral (string literal)
-		{
-			Write (literal);
-		}
+        private void WriteIndent()
+        {
+            if (!_writeIndent)
+                return;
 
-		public void WriteReference (string value, object reference)
-		{
-			Write (value);
-		}
-
-		public void WriteIdentifier (string value, object identifier)
-		{
-			Write (value);
-		}
-
-		public void Indent ()
-		{
-			indent++;
-		}
-
-		public void Dedent ()
-		{
-			indent--;
-		}
-	}
+            for (var i = 0; i < _indent; i++)
+                _writer.Write("\t");
+        }
+    }
 }

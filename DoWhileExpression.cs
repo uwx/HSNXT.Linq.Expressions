@@ -29,123 +29,95 @@
 using System;
 using System.Linq.Expressions;
 
-namespace Mono.Linq.Expressions {
+namespace Mono.Linq.Expressions
+{
+    public class DoWhileExpression : CustomExpression
+    {
+        internal DoWhileExpression(Expression test, Expression body, LabelTarget breakTarget,
+            LabelTarget continueTarget)
+        {
+            Test = test;
+            Body = body;
+            BreakTarget = breakTarget;
+            ContinueTarget = continueTarget;
+        }
 
-	public class DoWhileExpression : CustomExpression {
+        public Expression Test { get; }
 
-		readonly Expression test;
-		readonly Expression body;
+        public Expression Body { get; }
 
-		readonly LabelTarget break_target;
-		readonly LabelTarget continue_target;
+        public LabelTarget BreakTarget { get; }
 
-		public Expression Test {
-			get { return test; }
-		}
+        public LabelTarget ContinueTarget { get; }
 
-		public Expression Body {
-			get { return body; }
-		}
+        public override Type Type => BreakTarget != null ? BreakTarget.Type : typeof(void);
 
-		public LabelTarget BreakTarget {
-			get { return break_target; }
-		}
+        public override CustomExpressionType CustomNodeType => CustomExpressionType.DoWhileExpression;
 
-		public LabelTarget ContinueTarget {
-			get { return continue_target; }
-		}
+        public DoWhileExpression Update(Expression test, Expression body, LabelTarget breakTarget,
+            LabelTarget continueTarget)
+        {
+            if (Test == test && Body == body && BreakTarget == breakTarget && ContinueTarget == continueTarget)
+                return this;
 
-		public override Type Type {
-			get {
-				if (break_target != null)
-					return break_target.Type;
+            return DoWhile(test, body, breakTarget, continueTarget);
+        }
 
-				return typeof (void);
-			}
-		}
+        public override Expression Reduce()
+        {
+            var innerLoopBreak = Label("inner_loop_break");
+            var innerLoopContinue = Label("inner_loop_continue");
 
-		public override CustomExpressionType CustomNodeType {
-			get { return CustomExpressionType.DoWhileExpression; }
-		}
+            var @continue = ContinueTarget ?? Label("continue");
+            var @break = BreakTarget ?? Label("break");
 
-		internal DoWhileExpression (Expression test,  Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
-		{
-			this.test = test;
-			this.body = body;
-			this.break_target = breakTarget;
-			this.continue_target = continueTarget;
-		}
+            return Block(
+                Loop(
+                    Block(
+                        Label(@continue),
+                        Body,
+                        Test.Condition(
+                            Goto(innerLoopContinue),
+                            Goto(innerLoopBreak))),
+                    innerLoopBreak,
+                    innerLoopContinue),
+                Label(@break));
+        }
 
-		public DoWhileExpression Update (Expression test, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
-		{
-			if (this.test == test && this.body == body && this.break_target == breakTarget && this.continue_target == continueTarget)
-				return this;
+        protected override Expression VisitChildren(ExpressionVisitor visitor)
+            => Update(
+                visitor.Visit(Test),
+                visitor.Visit(Body),
+                ContinueTarget,
+                BreakTarget);
 
-			return CustomExpression.DoWhile (test, body, breakTarget, continueTarget);
-		}
+        public override Expression Accept(CustomExpressionVisitor visitor)
+            => visitor.VisitDoWhileExpression(this);
+    }
 
-		public override Expression Reduce ()
-		{
-			var inner_loop_break = Expression.Label ("inner_loop_break");
-			var inner_loop_continue = Expression.Label ("inner_loop_continue");
+    public abstract partial class CustomExpression
+    {
+        public static DoWhileExpression DoWhile(Expression test, Expression body)
+            => DoWhile(test, body, null);
 
-			var @continue = continue_target ?? Expression.Label ("continue");
-			var @break = break_target ?? Expression.Label ("break");
+        public static DoWhileExpression DoWhile(Expression test, Expression body, LabelTarget breakTarget)
+            => DoWhile(test, body, breakTarget, null);
 
-			return Expression.Block (
-				Expression.Loop (
-					Expression.Block (
-						Expression.Label (@continue),
-						body,
-						test.Condition (
-							Expression.Goto (inner_loop_continue),
-							Expression.Goto (inner_loop_break))),
-					inner_loop_break,
-					inner_loop_continue),
-				Expression.Label (@break));
-		}
+        public static DoWhileExpression DoWhile(Expression test, Expression body, LabelTarget breakTarget,
+            LabelTarget continueTarget)
+        {
+            if (test == null)
+                throw new ArgumentNullException(nameof(test));
+            if (body == null)
+                throw new ArgumentNullException(nameof(body));
 
-		protected override Expression VisitChildren (ExpressionVisitor visitor)
-		{
-			return Update (
-				visitor.Visit (test),
-				visitor.Visit (body),
-				continue_target,
-				break_target);
-		}
+            if (test.Type != typeof(bool))
+                throw new ArgumentException("Test must be a boolean expression", nameof(test));
 
-		public override Expression Accept (CustomExpressionVisitor visitor)
-		{
-			return visitor.VisitDoWhileExpression (this);
-		}
-	}
+            if (continueTarget != null && continueTarget.Type != typeof(void))
+                throw new ArgumentException("Continue label target must be void", nameof(continueTarget));
 
-	public abstract partial class CustomExpression {
-
-		public static DoWhileExpression DoWhile (Expression test, Expression body)
-		{
-			return DoWhile (test, body, null);
-		}
-
-		public static DoWhileExpression DoWhile (Expression test, Expression body, LabelTarget breakTarget)
-		{
-			return DoWhile (test, body, breakTarget, null);
-		}
-
-		public static DoWhileExpression DoWhile (Expression test, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
-		{
-			if (test == null)
-				throw new ArgumentNullException (nameof(test));
-			if (body == null)
-				throw new ArgumentNullException (nameof(body));
-
-			if (test.Type != typeof (bool))
-				throw new ArgumentException ("Test must be a boolean expression", nameof(test));
-
-			if (continueTarget != null && continueTarget.Type != typeof (void))
-				throw new ArgumentException ("Continue label target must be void", nameof(continueTarget));
-
-			return new DoWhileExpression (test, body, breakTarget, continueTarget);
-		}
-	}
+            return new DoWhileExpression(test, body, breakTarget, continueTarget);
+        }
+    }
 }

@@ -30,34 +30,34 @@ using System;
 using System.IO;
 using System.Linq.Expressions;
 
-namespace Mono.Linq.Expressions.ToCode {
+namespace Mono.Linq.Expressions.ToCode
+{
+    public static class CSharp
+    {
+        public static string ToCSharpCode(this Expression self)
+        {
+            if (self == null)
+                throw new ArgumentNullException(nameof(self));
 
-	public static class CSharp {
+            return ToCode(writer => writer.Write(self));
+        }
 
-		public static string ToCSharpCode (this Expression self)
-		{
-			if (self == null)
-				throw new ArgumentNullException (nameof(self));
+        public static string ToCSharpCode(this LambdaExpression self)
+        {
+            if (self == null)
+                throw new ArgumentNullException(nameof(self));
 
-			return ToCode (writer => writer.Write (self));
-		}
+            return ToCode(writer => writer.Write(self));
+        }
 
-		public static string ToCSharpCode (this LambdaExpression self)
-		{
-			if (self == null)
-				throw new ArgumentNullException (nameof(self));
+        private static string ToCode(Action<CSharpWriter> writer)
+        {
+            var str = new StringWriter();
+            var csharp = new CSharpWriter(new TextFormatter(str));
 
-			return ToCode (writer => writer.Write (self));
-		}
+            writer(csharp);
 
-		static string ToCode (Action<CSharpWriter> writer)
-		{
-			var @string = new StringWriter ();
-			var csharp = new CSharpWriter (new TextFormatter (@string));
-
-			writer (csharp);
-
-			return @string.ToString ();
-		}
-	}
+            return str.ToString();
+        }
+    }
 }

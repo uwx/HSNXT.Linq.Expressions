@@ -29,24 +29,24 @@
 using System;
 using System.Linq.Expressions;
 
-namespace Mono.Linq.Expressions {
+namespace Mono.Linq.Expressions
+{
+    public static class ExpressionExtensions
+    {
+        public static bool Is(this Expression self, ExpressionType type)
+        {
+            if (self == null)
+                throw new ArgumentNullException(nameof(self));
 
-	public static class ExpressionExtensions {
+            return self.NodeType == type;
+        }
 
-		public static bool Is (this Expression self, ExpressionType type)
-		{
-			if (self == null)
-				throw new ArgumentNullException (nameof(self));
+        public static bool Is(this CustomExpression self, CustomExpressionType type)
+        {
+            if (self == null)
+                throw new ArgumentNullException(nameof(self));
 
-			return self.NodeType == type;
-		}
-
-		public static bool Is (this CustomExpression self, CustomExpressionType type)
-		{
-			if (self == null)
-				throw new ArgumentNullException (nameof(self));
-
-			return self.CustomNodeType == type;
-		}
-	}
+            return self.CustomNodeType == type;
+        }
+    }
 }

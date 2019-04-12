@@ -29,157 +29,120 @@
 using System;
 using System.Linq.Expressions;
 
-namespace Mono.Linq.Expressions {
+namespace Mono.Linq.Expressions
+{
+    public class ForExpression : CustomExpression
+    {
+        internal ForExpression(ParameterExpression variable, Expression initializer, Expression test, Expression step,
+            Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
+        {
+            Variable = variable;
+            Initializer = initializer;
+            Test = test;
+            Step = step;
+            Body = body;
+            BreakTarget = breakTarget;
+            ContinueTarget = continueTarget;
+        }
 
-	public class ForExpression : CustomExpression {
+        public ParameterExpression Variable { get; }
 
-		readonly ParameterExpression variable;
-		readonly Expression initializer;
-		readonly Expression test;
-		readonly Expression step;
+        public Expression Initializer { get; }
 
-		readonly Expression body;
+        public Expression Test { get; }
 
-		readonly LabelTarget break_target;
-		readonly LabelTarget continue_target;
+        public Expression Step { get; }
 
-		public new ParameterExpression Variable {
-			get { return variable; }
-		}
+        public Expression Body { get; }
 
-		public Expression Initializer {
-			get { return initializer; }
-		}
+        public LabelTarget BreakTarget { get; }
 
-		public Expression Test {
-			get { return test; }
-		}
+        public LabelTarget ContinueTarget { get; }
 
-		public Expression Step {
-			get { return step; }
-		}
+        public override Type Type => BreakTarget != null ? BreakTarget.Type : typeof(void);
 
-		public Expression Body {
-			get { return body; }
-		}
+        public override CustomExpressionType CustomNodeType => CustomExpressionType.ForExpression;
 
-		public LabelTarget BreakTarget {
-			get { return break_target; }
-		}
+        public ForExpression Update(ParameterExpression variable, Expression initializer, Expression test,
+            Expression step, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
+        {
+            if (Variable == variable && Initializer == initializer && Test == test && Step == step && Body == body &&
+                BreakTarget == breakTarget && ContinueTarget == continueTarget)
+                return this;
 
-		public LabelTarget ContinueTarget {
-			get { return continue_target; }
-		}
+            return For(variable, initializer, test, step, body, breakTarget, continueTarget);
+        }
 
-		public override Type Type {
-			get {
-				if (break_target != null)
-					return break_target.Type;
+        public override Expression Reduce()
+        {
+            var innerLoopBreak = Label("inner_loop_break");
+            var innerLoopContinue = Label("inner_loop_continue");
 
-				return typeof (void);
-			}
-		}
+            var @continue = ContinueTarget ?? Label("continue");
+            var @break = BreakTarget ?? Label("break");
 
-		public override CustomExpressionType CustomNodeType {
-			get { return CustomExpressionType.ForExpression; }
-		}
+            return Block(
+                new[] {Variable},
+                Variable.Assign(Initializer),
+                Loop(
+                    Block(
+                        IfThen(
+                            IsFalse(Test),
+                            Break(innerLoopBreak)),
+                        Body,
+                        Label(@continue),
+                        Step),
+                    innerLoopBreak,
+                    innerLoopContinue),
+                Label(@break));
+        }
 
-		internal ForExpression (ParameterExpression variable, Expression initializer, Expression test, Expression step, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
-		{
-			this.variable = variable;
-			this.initializer = initializer;
-			this.test = test;
-			this.step = step;
-			this.body = body;
-			this.break_target = breakTarget;
-			this.continue_target = continueTarget;
-		}
+        protected override Expression VisitChildren(ExpressionVisitor visitor) =>
+            Update(
+                (ParameterExpression) visitor.Visit(Variable),
+                visitor.Visit(Initializer),
+                visitor.Visit(Test),
+                visitor.Visit(Step),
+                visitor.Visit(Body),
+                BreakTarget,
+                ContinueTarget);
 
-		public ForExpression Update (ParameterExpression variable, Expression initializer, Expression test, Expression step, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
-		{
-			if (this.variable == variable && this.initializer == initializer && this.test == test && this.step == step && this.body == body && this.break_target == breakTarget && this.continue_target == continueTarget)
-				return this;
+        public override Expression Accept(CustomExpressionVisitor visitor) => visitor.VisitForExpression(this);
+    }
 
-			return CustomExpression.For (variable, initializer, test, step, body, breakTarget, continueTarget);
-		}
+    public abstract partial class CustomExpression
+    {
+        public static ForExpression For(ParameterExpression variable, Expression initializer, Expression test,
+            Expression step, Expression body) => For(variable, initializer, test, step, body, null);
 
-		public override Expression Reduce ()
-		{
-			var inner_loop_break = Expression.Label ("inner_loop_break");
-			var inner_loop_continue = Expression.Label ("inner_loop_continue");
+        public static ForExpression For(ParameterExpression variable, Expression initializer, Expression test,
+            Expression step, Expression body, LabelTarget breakTarget) =>
+            For(variable, initializer, test, step, body, breakTarget, null);
 
-			var @continue = continue_target ?? Expression.Label ("continue");
-			var @break = break_target ?? Expression.Label ("break");
+        public static ForExpression For(ParameterExpression variable, Expression initializer, Expression test,
+            Expression step, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
+        {
+            if (variable == null)
+                throw new ArgumentNullException(nameof(variable));
+            if (initializer == null)
+                throw new ArgumentNullException(nameof(initializer));
+            if (test == null)
+                throw new ArgumentNullException(nameof(test));
+            if (step == null)
+                throw new ArgumentNullException(nameof(step));
+            if (body == null)
+                throw new ArgumentNullException(nameof(body));
 
-			return Expression.Block (
-				new [] { variable },
-				variable.Assign (initializer),
-				Expression.Loop (
-					Expression.Block (
-						Expression.IfThen (
-							Expression.IsFalse (test),
-							Expression.Break (inner_loop_break)),
-						body,
-						Expression.Label (@continue),
-						step),
-					inner_loop_break,
-					inner_loop_continue),
-				Expression.Label (@break));
-		}
+            if (!variable.Type.IsAssignableFrom(initializer.Type))
+                throw new ArgumentException("Initializer must be assignable to variable", nameof(initializer));
 
-		protected override Expression VisitChildren (ExpressionVisitor visitor)
-		{
-			return Update (
-				(ParameterExpression) visitor.Visit (variable),
-				visitor.Visit (initializer),
-				visitor.Visit (test),
-				visitor.Visit (step),
-				visitor.Visit (body),
-				break_target,
-				continue_target);
-		}
+            if (test.Type != typeof(bool))
+                throw new ArgumentException("Test must be a boolean expression", nameof(test));
 
-		public override Expression Accept (CustomExpressionVisitor visitor)
-		{
-			return visitor.VisitForExpression (this);
-		}
-	}
+            if (continueTarget != null && continueTarget.Type != typeof(void))
+                throw new ArgumentException("Continue label target must be void", nameof(continueTarget));
 
-	public abstract partial class CustomExpression {
-
-		public static ForExpression For (ParameterExpression variable, Expression initializer, Expression test, Expression step, Expression body)
-		{
-			return For (variable, initializer, test, step, body, null);
-		}
-
-		public static ForExpression For (ParameterExpression variable, Expression initializer, Expression test, Expression step, Expression body, LabelTarget breakTarget)
-		{
-			return For (variable, initializer, test, step, body, breakTarget, null);
-		}
-
-		public static ForExpression For (ParameterExpression variable, Expression initializer, Expression test, Expression step, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
-		{
-			if (variable == null)
-				throw new ArgumentNullException (nameof(variable));
-			if (initializer == null)
-				throw new ArgumentNullException (nameof(initializer));
-			if (test == null)
-				throw new ArgumentNullException (nameof(test));
-			if (step == null)
-				throw new ArgumentNullException (nameof(step));
-			if (body == null)
-				throw new ArgumentNullException (nameof(body));
-
-			if (!variable.Type.IsAssignableFrom (initializer.Type))
-				throw new ArgumentException ("Initializer must be assignable to variable", nameof(initializer));
-
-			if (test.Type != typeof (bool))
-				throw new ArgumentException ("Test must be a boolean expression", nameof(test));
-
-			if (continueTarget != null && continueTarget.Type != typeof (void))
-				throw new ArgumentException ("Continue label target must be void", nameof(continueTarget));
-
-			return new ForExpression (variable, initializer, test, step, body, breakTarget, continueTarget);
-		}
-	}
+            return new ForExpression(variable, initializer, test, step, body, breakTarget, continueTarget);
+        }
+    }
 }

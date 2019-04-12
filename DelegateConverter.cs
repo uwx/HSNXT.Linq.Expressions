@@ -29,18 +29,16 @@
 using System;
 using System.Linq.Expressions;
 
-[AttributeUsage (AttributeTargets.GenericParameter)]
-class DelegateConstraintAttribute : Attribute {
+[AttributeUsage(AttributeTargets.GenericParameter)]
+internal class DelegateConstraintAttribute : Attribute
+{
 }
 
-namespace Mono.Linq.Expressions {
-
-	public static class DelegateConverter {
-
-		public static Expression<TDelegate> ToExpression<[DelegateConstraint] TDelegate> (this TDelegate @delegate)
-			where TDelegate : class
-		{
-			throw new NotImplementedException ();
-		}
-	}
+namespace Mono.Linq.Expressions
+{
+    public static class DelegateConverter
+    {
+        public static Expression<TDelegate> ToExpression<[DelegateConstraint] TDelegate>(this TDelegate @delegate)
+            where TDelegate : class => throw new NotImplementedException();
+    }
 }

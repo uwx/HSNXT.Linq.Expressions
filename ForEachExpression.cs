@@ -32,291 +32,244 @@ using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Reflection;
 
-namespace Mono.Linq.Expressions {
+namespace Mono.Linq.Expressions
+{
+    public class ForEachExpression : CustomExpression
+    {
+        internal ForEachExpression(ParameterExpression variable, Expression enumerable, Expression body,
+            LabelTarget breakTarget, LabelTarget continueTarget)
+        {
+            Variable = variable;
+            Enumerable = enumerable;
+            Body = body;
+            BreakTarget = breakTarget;
+            ContinueTarget = continueTarget;
+        }
 
-	public class ForEachExpression : CustomExpression {
+        public ParameterExpression Variable { get; }
 
-		readonly ParameterExpression variable;
-		readonly Expression enumerable;
-		readonly Expression body;
+        public Expression Enumerable { get; }
 
-		readonly LabelTarget break_target;
-		readonly LabelTarget continue_target;
+        public Expression Body { get; }
 
-		public new ParameterExpression Variable {
-			get { return variable; }
-		}
+        public LabelTarget BreakTarget { get; }
 
-		public Expression Enumerable {
-			get { return enumerable; }
-		}
+        public LabelTarget ContinueTarget { get; }
 
-		public Expression Body {
-			get { return body; }
-		}
+        public override Type Type => BreakTarget != null ? BreakTarget.Type : typeof(void);
 
-		public LabelTarget BreakTarget {
-			get { return break_target; }
-		}
+        public override CustomExpressionType CustomNodeType => CustomExpressionType.ForEachExpression;
 
-		public LabelTarget ContinueTarget {
-			get { return continue_target; }
-		}
+        public ForEachExpression Update(ParameterExpression variable, Expression enumerable, Expression body,
+            LabelTarget breakTarget, LabelTarget continueTarget)
+        {
+            if (Variable == variable && Enumerable == enumerable && Body == body && BreakTarget == breakTarget &&
+                ContinueTarget == continueTarget)
+                return this;
 
-		public override Type Type {
-			get {
-				if (break_target != null)
-					return break_target.Type;
+            return ForEach(variable, enumerable, body, breakTarget, continueTarget);
+        }
 
-				return typeof (void);
-			}
-		}
+        public override Expression Reduce()
+        {
+            // Avoid allocating an unnecessary enumerator for arrays.
+            return Enumerable.Type.IsArray ? ReduceForArray() : ReduceForEnumerable();
+        }
 
-		public override CustomExpressionType CustomNodeType {
-			get { return CustomExpressionType.ForEachExpression; }
-		}
+        private Expression ReduceForArray()
+        {
+            var innerLoopBreak = Label("inner_loop_break");
+            var innerLoopContinue = Label("inner_loop_continue");
 
-		internal ForEachExpression (ParameterExpression variable, Expression enumerable, Expression body, LabelTarget break_target, LabelTarget continue_target)
-		{
-			this.variable = variable;
-			this.enumerable = enumerable;
-			this.body = body;
-			this.break_target = break_target;
-			this.continue_target = continue_target;
-		}
+            var @continue = ContinueTarget ?? Label("continue");
+            var @break = BreakTarget ?? Label("break");
 
-		public ForEachExpression Update (ParameterExpression variable, Expression enumerable, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
-		{
-			if (this.variable == variable && this.enumerable == enumerable && this.body == body && break_target == breakTarget && continue_target == continueTarget)
-				return this;
+            var index = Variable(typeof(int), "i");
 
-			return CustomExpression.ForEach (variable, enumerable, body, breakTarget, continueTarget);
-		}
+            return Block(
+                new[] {index, Variable},
+                index.Assign(Constant(0)),
+                Loop(
+                    Block(
+                        IfThen(
+                            IsFalse(
+                                LessThan(
+                                    index,
+                                    ArrayLength(Enumerable))),
+                            Break(innerLoopBreak)),
+                        Variable.Assign(
+                            ArrayIndex(
+                                Enumerable,
+                                index).Convert(Variable.Type)),
+                        Body,
+                        Label(@continue),
+                        PreIncrementAssign(index)),
+                    innerLoopBreak,
+                    innerLoopContinue),
+                Label(@break));
+        }
 
-		public override Expression Reduce ()
-		{
-			// Avoid allocating an unnecessary enumerator for arrays.
-			if (enumerable.Type.IsArray)
-				return ReduceForArray ();
+        private Expression ReduceForEnumerable()
+        {
+            ResolveEnumerationMembers(out var getEnumerator, out var moveNext, out var getCurrent);
 
-			return ReduceForEnumerable ();
-		}
+            var enumeratorType = getEnumerator.ReturnType;
 
-		private Expression ReduceForArray ()
-		{
-			var inner_loop_break = Expression.Label ("inner_loop_break");
-			var inner_loop_continue = Expression.Label ("inner_loop_continue");
+            var enumerator = Variable(enumeratorType);
 
-			var @continue = continue_target ?? Expression.Label ("continue");
-			var @break = break_target ?? Expression.Label ("break");
+            var innerLoopContinue = Label("inner_loop_continue");
+            var innerLoopBreak = Label("inner_loop_break");
+            var @continue = ContinueTarget ?? Label("continue");
+            var @break = BreakTarget ?? Label("break");
 
-			var index = Expression.Variable (typeof (int), "i");
+            Expression variableInitializer;
 
-			return Expression.Block (
-				new [] { index, variable },
-				index.Assign (Expression.Constant (0)),
-				Expression.Loop (
-					Expression.Block (
-						Expression.IfThen (
-							Expression.IsFalse (
-								Expression.LessThan (
-									index,
-									Expression.ArrayLength (enumerable))),
-							Expression.Break (inner_loop_break)),
-						variable.Assign (
-							Expression.ArrayIndex (
-								enumerable,
-								index).Convert (variable.Type)),
-						body,
-						Expression.Label (@continue),
-						Expression.PreIncrementAssign (index)),
-					inner_loop_break,
-					inner_loop_continue),
-				Expression.Label (@break));
-		}
+            if (Variable.Type.IsAssignableFrom(getCurrent.ReturnType))
+                variableInitializer = enumerator.Property(getCurrent);
+            else
+                variableInitializer = enumerator.Property(getCurrent).Convert(Variable.Type);
 
-		private Expression ReduceForEnumerable ()
-		{
-			MethodInfo get_enumerator;
-			MethodInfo move_next;
-			MethodInfo get_current;
+            Expression loop = Block(
+                new[] {Variable},
+                Goto(@continue),
+                Loop(
+                    Block(
+                        Variable.Assign(variableInitializer),
+                        Body,
+                        Label(@continue),
+                        Condition(
+                            Call(enumerator, moveNext),
+                            Goto(innerLoopContinue),
+                            Goto(innerLoopBreak))),
+                    innerLoopBreak,
+                    innerLoopContinue),
+                Label(@break));
 
-			ResolveEnumerationMembers (out get_enumerator, out move_next, out get_current);
+            var dispose = CreateDisposeOperation(enumeratorType, enumerator);
 
-			var enumerator_type = get_enumerator.ReturnType;
+            return Block(
+                new[] {enumerator},
+                enumerator.Assign(Call(Enumerable, getEnumerator)),
+                dispose != null
+                    ? TryFinally(loop, dispose)
+                    : loop);
+        }
 
-			var enumerator = Expression.Variable (enumerator_type);
+        private void ResolveEnumerationMembers(
+            out MethodInfo getEnumerator,
+            out MethodInfo moveNext,
+            out MethodInfo getCurrent)
+        {
+            Type enumerableType;
+            Type enumeratorType;
 
-			var inner_loop_continue = Expression.Label ("inner_loop_continue");
-			var inner_loop_break = Expression.Label ("inner_loop_break");
-			var @continue = continue_target ?? Expression.Label ("continue");
-			var @break = break_target ?? Expression.Label ("break");
+            if (TryGetGenericEnumerableArgument(out var itemType))
+            {
+                enumerableType = typeof(IEnumerable<>).MakeGenericType(itemType);
+                enumeratorType = typeof(IEnumerator<>).MakeGenericType(itemType);
+            }
+            else
+            {
+                enumerableType = typeof(IEnumerable);
+                enumeratorType = typeof(IEnumerator);
+            }
 
-			Expression variable_initializer;
+            moveNext = typeof(IEnumerator).GetMethod("MoveNext");
+            getCurrent = enumeratorType.GetProperty("Current").GetGetMethod();
+            getEnumerator = Enumerable.Type.GetMethod("GetEnumerator", BindingFlags.Public | BindingFlags.Instance);
 
-			if (variable.Type.IsAssignableFrom (get_current.ReturnType))
-				variable_initializer = enumerator.Property (get_current);
-			else
-				variable_initializer = enumerator.Property (get_current).Convert (variable.Type);
+            //
+            // We want to avoid unnecessarily boxing an enumerator if it's a value type.  Look
+            // for a GetEnumerator() method that conforms to the rules of the C# 'foreach'
+            // pattern.  If we don't find one, fall back to IEnumerable[<T>].GetEnumerator().
+            //
 
-			Expression loop = Expression.Block (
-				new [] { variable },
-				Expression.Goto (@continue),
-				Expression.Loop (
-					Expression.Block (
-						variable.Assign (variable_initializer),
-						body,
-						Expression.Label (@continue),
-						Expression.Condition (
-							Expression.Call (enumerator, move_next),
-							Expression.Goto (inner_loop_continue),
-							Expression.Goto (inner_loop_break))),
-					inner_loop_break,
-					inner_loop_continue),
-				Expression.Label (@break));
+            if (getEnumerator == null || !enumeratorType.IsAssignableFrom(getEnumerator.ReturnType))
+                getEnumerator = enumerableType.GetMethod("GetEnumerator");
+        }
 
-			var dispose = CreateDisposeOperation (enumerator_type, enumerator);
+        private static Expression CreateDisposeOperation(Type enumeratorType, ParameterExpression enumerator)
+        {
+            var dispose = typeof(IDisposable).GetMethod("Dispose");
 
-			return Expression.Block (
-				new [] { enumerator },
-				enumerator.Assign (Expression.Call (enumerable, get_enumerator)),
-				dispose != null
-					? Expression.TryFinally (loop, dispose)
-					: loop);
-		}
+            if (typeof(IDisposable).IsAssignableFrom(enumeratorType)) return Call(enumerator, dispose);
 
-		private void ResolveEnumerationMembers (
-			out MethodInfo get_enumerator,
-			out MethodInfo move_next,
-			out MethodInfo get_current)
-		{
-			Type item_type;
-			Type enumerable_type;
-			Type enumerator_type;
+            if (enumeratorType.IsValueType) return null;
 
-			if (TryGetGenericEnumerableArgument (out item_type)) {
-				enumerable_type = typeof (IEnumerable<>).MakeGenericType (item_type);
-				enumerator_type = typeof (IEnumerator<>).MakeGenericType (item_type);
-			} else {
-				enumerable_type = typeof (IEnumerable);
-				enumerator_type = typeof (IEnumerator);
-			}
+            //
+            // We don't know whether the enumerator implements IDisposable or not.  Emit a
+            // runtime check.
+            //
 
-			move_next = typeof (IEnumerator).GetMethod ("MoveNext");
-			get_current = enumerator_type.GetProperty ("Current").GetGetMethod ();
-			get_enumerator = enumerable.Type.GetMethod ("GetEnumerator", BindingFlags.Public | BindingFlags.Instance);
+            var disposable = Variable(typeof(IDisposable));
 
-			//
-			// We want to avoid unnecessarily boxing an enumerator if it's a value type.  Look
-			// for a GetEnumerator() method that conforms to the rules of the C# 'foreach'
-			// pattern.  If we don't find one, fall back to IEnumerable[<T>].GetEnumerator().
-			//
+            return Block(
+                new[] {disposable},
+                disposable.Assign(enumerator.TypeAs(typeof(IDisposable))),
+                disposable.ReferenceNotEqual(Constant(null)).IfThen(
+                    Call(
+                        disposable,
+                        "Dispose",
+                        new Type [0])));
+        }
 
-			if (get_enumerator == null || !enumerator_type.IsAssignableFrom (get_enumerator.ReturnType)) {
-				get_enumerator = enumerable_type.GetMethod ("GetEnumerator");
-			}
-		}
+        private bool TryGetGenericEnumerableArgument(out Type argument)
+        {
+            argument = null;
 
-		private static Expression CreateDisposeOperation (Type enumerator_type, ParameterExpression enumerator)
-		{
-			var dispose = typeof (IDisposable).GetMethod ("Dispose");
+            foreach (var iface in Enumerable.Type.GetInterfaces())
+            {
+                if (!iface.IsGenericType)
+                    continue;
 
-			if (typeof (IDisposable).IsAssignableFrom (enumerator_type)) {
-				//
-				// We know the enumerator implements IDisposable, so skip the type check.
-				//
-				return Expression.Call (enumerator, dispose);
-			}
+                var definition = iface.GetGenericTypeDefinition();
+                if (definition != typeof(IEnumerable<>))
+                    continue;
 
-			if (enumerator_type.IsValueType) {
-				//
-				// The enumerator is a value type and doesn't implement IDisposable; we needn't
-				// bother with a check at all.
-				//
-				return null;
-			}
+                argument = iface.GetGenericArguments()[0];
+                if (Variable.Type.IsAssignableFrom(argument))
+                    return true;
+            }
 
-			//
-			// We don't know whether the enumerator implements IDisposable or not.  Emit a
-			// runtime check.
-			//
+            return false;
+        }
 
-			var disposable = Expression.Variable (typeof (IDisposable));
+        protected override Expression VisitChildren(ExpressionVisitor visitor) =>
+            Update(
+                (ParameterExpression) visitor.Visit(Variable),
+                visitor.Visit(Enumerable),
+                visitor.Visit(Body),
+                BreakTarget,
+                ContinueTarget);
 
-			return Expression.Block (
-				new [] { disposable },
-				disposable.Assign (enumerator.TypeAs (typeof (IDisposable))),
-				disposable.ReferenceNotEqual (Expression.Constant (null)).IfThen (
-					Expression.Call (
-						disposable,
-						"Dispose",
-						new Type [0])));
-		}
+        public override Expression Accept(CustomExpressionVisitor visitor) => visitor.VisitForEachExpression(this);
+    }
 
-		private bool TryGetGenericEnumerableArgument (out Type argument)
-		{
-			argument = null;
+    public abstract partial class CustomExpression
+    {
+        public static ForEachExpression ForEach(ParameterExpression variable, Expression enumerable, Expression body) =>
+            ForEach(variable, enumerable, body, null);
 
-			foreach (var iface in enumerable.Type.GetInterfaces ()) {
-				if (!iface.IsGenericType)
-					continue;
+        public static ForEachExpression ForEach(ParameterExpression variable, Expression enumerable, Expression body,
+            LabelTarget breakTarget) => ForEach(variable, enumerable, body, breakTarget, null);
 
-				var definition = iface.GetGenericTypeDefinition ();
-				if (definition != typeof (IEnumerable<>))
-					continue;
+        public static ForEachExpression ForEach(ParameterExpression variable, Expression enumerable, Expression body,
+            LabelTarget breakTarget, LabelTarget continueTarget)
+        {
+            if (variable == null)
+                throw new ArgumentNullException(nameof(variable));
+            if (enumerable == null)
+                throw new ArgumentNullException(nameof(enumerable));
+            if (body == null)
+                throw new ArgumentNullException(nameof(body));
 
-				argument = iface.GetGenericArguments () [0];
-				if (variable.Type.IsAssignableFrom (argument))
-					return true;
-			}
+            if (!typeof(IEnumerable).IsAssignableFrom(enumerable.Type))
+                throw new ArgumentException("The enumerable must implement at least IEnumerable", nameof(enumerable));
 
-			return false;
-		}
+            if (continueTarget != null && continueTarget.Type != typeof(void))
+                throw new ArgumentException("Continue label target must be void", nameof(continueTarget));
 
-		protected override Expression VisitChildren (ExpressionVisitor visitor)
-		{
-			return Update (
-				(ParameterExpression) visitor.Visit (variable),
-				visitor.Visit (enumerable),
-				visitor.Visit (body),
-				break_target,
-				continue_target);
-		}
-
-		public override Expression Accept (CustomExpressionVisitor visitor)
-		{
-			return visitor.VisitForEachExpression (this);
-		}
-	}
-
-	public abstract partial class CustomExpression {
-
-		public static ForEachExpression ForEach (ParameterExpression variable, Expression enumerable, Expression body)
-		{
-			return ForEach (variable, enumerable, body, null);
-		}
-
-		public static ForEachExpression ForEach (ParameterExpression variable, Expression enumerable, Expression body, LabelTarget breakTarget)
-		{
-			return ForEach (variable, enumerable, body, breakTarget, null);
-		}
-
-		public static ForEachExpression ForEach (ParameterExpression variable, Expression enumerable, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
-		{
-			if (variable == null)
-				throw new ArgumentNullException (nameof(variable));
-			if (enumerable == null)
-				throw new ArgumentNullException (nameof(enumerable));
-			if (body == null)
-				throw new ArgumentNullException (nameof(body));
-
-			if (!typeof (IEnumerable).IsAssignableFrom (enumerable.Type))
-				throw new ArgumentException ("The enumerable must implement at least IEnumerable", nameof(enumerable));
-
-			if (continueTarget != null && continueTarget.Type != typeof (void))
-				throw new ArgumentException ("Continue label target must be void", nameof(continueTarget));
-
-			return new ForEachExpression (variable, enumerable, body, breakTarget, continueTarget);
-		}
-	}
+            return new ForEachExpression(variable, enumerable, body, breakTarget, continueTarget);
+        }
+    }
 }

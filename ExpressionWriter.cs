@@ -28,100 +28,97 @@
 
 using System.Linq.Expressions;
 
-namespace Mono.Linq.Expressions {
+namespace Mono.Linq.Expressions
+{
+    public abstract class ExpressionWriter : CustomExpressionVisitor, IExpressionWriter
+    {
+        private readonly IFormatter _formatter;
 
-	public abstract class ExpressionWriter : CustomExpressionVisitor, IExpressionWriter {
+        protected ExpressionWriter(IFormatter formatter) => _formatter = formatter;
 
-		readonly IFormatter formatter;
+        public virtual void Write(Expression expression)
+        {
+            Visit(expression);
+        }
 
-		protected ExpressionWriter (IFormatter formatter)
-		{
-			this.formatter = formatter;
-		}
+        public virtual void Write(ElementInit initializer)
+        {
+            VisitElementInit(initializer);
+        }
 
-		public virtual void Write (LambdaExpression expression)
-		{
-			Visit (expression.Body);
-		}
+        public virtual void Write(MemberBinding binding)
+        {
+            VisitMemberBinding(binding);
+        }
 
-		public virtual void Write (Expression expression)
-		{
-			Visit (expression);
-		}
+        public virtual void Write(CatchBlock block)
+        {
+            VisitCatchBlock(block);
+        }
 
-		public virtual void Write (ElementInit initializer)
-		{
-			VisitElementInit (initializer);
-		}
+        public virtual void Write(SwitchCase @case)
+        {
+            VisitSwitchCase(@case);
+        }
 
-		public virtual void Write (MemberBinding binding)
-		{
-			VisitMemberBinding (binding);
-		}
+        public virtual void Write(LabelTarget target)
+        {
+            VisitLabelTarget(target);
+        }
 
-		public virtual void Write (CatchBlock block)
-		{
-			VisitCatchBlock (block);
-		}
+        public virtual void Write(LambdaExpression expression)
+        {
+            Visit(expression.Body);
+        }
 
-		public virtual void Write (SwitchCase @case)
-		{
-			VisitSwitchCase (@case);
-		}
+        protected void Write(string str)
+        {
+            _formatter.Write(str);
+        }
 
-		public virtual void Write (LabelTarget target)
-		{
-			VisitLabelTarget (target);
-		}
+        protected void WriteLine()
+        {
+            _formatter.WriteLine();
+        }
 
-		protected void Write (string str)
-		{
-			formatter.Write (str);
-		}
+        protected void WriteSpace()
+        {
+            _formatter.WriteSpace();
+        }
 
-		protected void WriteLine ()
-		{
-			formatter.WriteLine ();
-		}
+        protected void WriteToken(string token)
+        {
+            _formatter.WriteToken(token);
+        }
 
-		protected void WriteSpace ()
-		{
-			formatter.WriteSpace ();
-		}
+        protected void WriteKeyword(string keyword)
+        {
+            _formatter.WriteKeyword(keyword);
+        }
 
-		protected void WriteToken (string token)
-		{
-			formatter.WriteToken (token);
-		}
+        protected void WriteLiteral(string literal)
+        {
+            _formatter.WriteLiteral(literal);
+        }
 
-		protected void WriteKeyword (string keyword)
-		{
-			formatter.WriteKeyword (keyword);
-		}
+        protected void WriteReference(string value, object reference)
+        {
+            _formatter.WriteReference(value, reference);
+        }
 
-		protected void WriteLiteral (string literal)
-		{
-			formatter.WriteLiteral (literal);
-		}
+        protected void WriteIdentifier(string value, object identifier)
+        {
+            _formatter.WriteIdentifier(value, identifier);
+        }
 
-		protected void WriteReference (string value, object reference)
-		{
-			formatter.WriteReference (value, reference);
-		}
+        protected void Indent()
+        {
+            _formatter.Indent();
+        }
 
-		protected void WriteIdentifier (string value, object identifier)
-		{
-			formatter.WriteIdentifier (value, identifier);
-		}
-
-		protected void Indent ()
-		{
-			formatter.Indent ();
-		}
-
-		protected void Dedent ()
-		{
-			formatter.Dedent ();
-		}
-	}
+        protected void Dedent()
+        {
+            _formatter.Dedent();
+        }
+    }
 }

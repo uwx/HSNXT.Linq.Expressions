@@ -28,28 +28,25 @@
 
 using System.Linq.Expressions;
 
-namespace Mono.Linq.Expressions {
+namespace Mono.Linq.Expressions
+{
+    public enum CustomExpressionType
+    {
+        DoWhileExpression,
+        ForEachExpression,
+        ForExpression,
+        UsingExpression,
+        WhileExpression
+    }
 
-	public enum CustomExpressionType {
-		DoWhileExpression,
-		ForEachExpression,
-		ForExpression,
-		UsingExpression,
-		WhileExpression,
-	}
+    public abstract partial class CustomExpression : Expression
+    {
+        public abstract CustomExpressionType CustomNodeType { get; }
 
-	public abstract partial class CustomExpression : Expression {
+        public override ExpressionType NodeType => ExpressionType.Extension;
 
-		public abstract CustomExpressionType CustomNodeType { get; }
+        public override bool CanReduce => true;
 
-		public override ExpressionType NodeType {
-			get { return ExpressionType.Extension; }
-		}
-
-		public override bool CanReduce {
-			get { return true; }
-		}
-
-		public abstract Expression Accept (CustomExpressionVisitor visitor);
-	}
+        public abstract Expression Accept(CustomExpressionVisitor visitor);
+    }
 }

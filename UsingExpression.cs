@@ -29,104 +29,82 @@
 using System;
 using System.Linq.Expressions;
 
-namespace Mono.Linq.Expressions {
+namespace Mono.Linq.Expressions
+{
+    public class UsingExpression : CustomExpression
+    {
+        internal UsingExpression(ParameterExpression variable, Expression disposable, Expression body)
+        {
+            Variable = variable;
+            Disposable = disposable;
+            Body = body;
+        }
 
-	public class UsingExpression : CustomExpression {
+        public ParameterExpression Variable { get; }
 
-		readonly ParameterExpression variable;
-		readonly Expression disposable;
-		readonly Expression body;
+        public Expression Disposable { get; }
 
-		public new ParameterExpression Variable {
-			get { return variable; }
-		}
+        public Expression Body { get; }
 
-		public Expression Disposable {
-			get { return disposable; }
-		}
+        public override Type Type => Body.Type;
 
-		public Expression Body {
-			get { return body; }
-		}
+        public override CustomExpressionType CustomNodeType => CustomExpressionType.UsingExpression;
 
-		public override Type Type {
-			get { return body.Type; }
-		}
+        public UsingExpression Update(ParameterExpression variable, Expression disposable, Expression body)
+        {
+            if (Variable == variable && Disposable == disposable && Body == body)
+                return this;
 
-		public override CustomExpressionType CustomNodeType {
-			get { return CustomExpressionType.UsingExpression; }
-		}
+            return Using(variable, disposable, body);
+        }
 
-		internal UsingExpression (ParameterExpression variable, Expression disposable, Expression body)
-		{
-			this.variable = variable;
-			this.disposable = disposable;
-			this.body = body;
-		}
+        public override Expression Reduce()
+        {
+            var endFinally = Label("end_finally");
 
-		public UsingExpression Update (ParameterExpression variable, Expression disposable, Expression body)
-		{
-			if (this.variable == variable && this.disposable == disposable && this.body == body)
-				return this;
+            return Block(
+                new[] {Variable},
+                Variable.Assign(Disposable),
+                TryFinally(
+                    Body,
+                    Block(
+                        Variable.NotEqual(Constant(null)).Condition(
+                            Block(
+                                Call(
+                                    Variable.Convert(typeof(IDisposable)),
+                                    typeof(IDisposable).GetMethod("Dispose")),
+                                Goto(endFinally)),
+                            Goto(endFinally)),
+                        Label(endFinally))));
+        }
 
-			return CustomExpression.Using (variable, disposable, body);
-		}
+        protected override Expression VisitChildren(ExpressionVisitor visitor) =>
+            Update(
+                (ParameterExpression) visitor.Visit(Variable),
+                visitor.Visit(Disposable),
+                visitor.Visit(Body));
 
-		public override Expression Reduce ()
-		{
-			var end_finally = Expression.Label ("end_finally");
+        public override Expression Accept(CustomExpressionVisitor visitor) => visitor.VisitUsingExpression(this);
+    }
 
-			return Expression.Block (
-				new [] { variable },
-				variable.Assign (disposable),
-				Expression.TryFinally (
-					body,
-					Expression.Block (
-						variable.NotEqual (Expression.Constant (null)).Condition (
-							Expression.Block (
-								Expression.Call (
-									variable.Convert (typeof (IDisposable)),
-									typeof (IDisposable).GetMethod ("Dispose")),
-								Expression.Goto (end_finally)),
-							Expression.Goto (end_finally)),
-						Expression.Label (end_finally))));
-		}
+    public abstract partial class CustomExpression
+    {
+        public static UsingExpression Using(Expression disposable, Expression body) => Using(null, disposable, body);
 
-		protected override Expression VisitChildren (ExpressionVisitor visitor)
-		{
-			return Update (
-				(ParameterExpression) visitor.Visit (variable),
-				visitor.Visit (disposable),
-				visitor.Visit (body));
-		}
+        public static UsingExpression Using(ParameterExpression variable, Expression disposable, Expression body)
+        {
+            if (disposable == null)
+                throw new ArgumentNullException(nameof(disposable));
+            if (body == null)
+                throw new ArgumentNullException(nameof(body));
 
-		public override Expression Accept (CustomExpressionVisitor visitor)
-		{
-			return visitor.VisitUsingExpression (this);
-		}
-	}
+            if (!typeof(IDisposable).IsAssignableFrom(disposable.Type))
+                throw new ArgumentException("The disposable must implement IDisposable", nameof(disposable));
 
-	public abstract partial class CustomExpression {
+            if (variable == null)
+                variable = Parameter(disposable.Type);
 
-		public static UsingExpression Using (Expression disposable, Expression body)
-		{
-			return Using (null, disposable, body);
-		}
-
-		public static UsingExpression Using (ParameterExpression variable, Expression disposable, Expression body)
-		{
-			if (disposable == null)
-				throw new ArgumentNullException (nameof(disposable));
-			if (body == null)
-				throw new ArgumentNullException (nameof(body));
-
-			if (!typeof (IDisposable).IsAssignableFrom (disposable.Type))
-				throw new ArgumentException ("The disposable must implement IDisposable", nameof(disposable));
-
-			if (variable == null)
-				variable = Expression.Parameter (disposable.Type);
-
-			return new UsingExpression (variable, disposable, body);
-		}
-	}
+            return new UsingExpression(variable, disposable, body);
+        }
+    }
 }
