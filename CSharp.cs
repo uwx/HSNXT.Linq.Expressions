@@ -30,7 +30,7 @@ using System;
 using System.IO;
 using System.Linq.Expressions;
 
-namespace Mono.Linq.Expressions {
+namespace Mono.Linq.Expressions.ToCode {
 
 	public static class CSharp {
 

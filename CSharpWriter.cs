@@ -650,10 +650,12 @@ namespace Mono.Linq.Expressions {
 		void VisitConvert (UnaryExpression node)
 		{
 			WriteToken ("(");
+			WriteToken ("(");
 			VisitType (node.Type);
 			WriteToken (")");
 
 			VisitParenthesizedExpression (node.Operand);
+			WriteToken (")");
 		}
 
 		void VisitConvertChecked (UnaryExpression node)
